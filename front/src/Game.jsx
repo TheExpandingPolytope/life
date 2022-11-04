@@ -39,7 +39,7 @@ export const Game = () => {
     }
     
     function callStep() {
-
+        
     }
 
     function makeCells() {
