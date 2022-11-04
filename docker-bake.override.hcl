@@ -1,5 +1,8 @@
 
 target "dapp" {
+  contexts = {
+    toolchain-python = "target:toolchain-python"
+  }
 }
 
 variable "TAG" {

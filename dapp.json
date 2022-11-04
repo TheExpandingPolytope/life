@@ -1,5 +1,6 @@
 {
   "fs": {
-    "files": ["life.py", "entrypoint.sh"]
+    "files": ["servers.py", "entrypoint.sh"],
+    "size": 128000
   }
 }

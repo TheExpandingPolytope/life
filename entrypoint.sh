@@ -12,4 +12,5 @@
 # specific language governing permissions and limitations under the License.
 
 set -e
-rollup-init python3 life.py
+PYTHONPATH=/mnt/dapp/server/.env/cross/lib/python3.10/site-packages rollup-init python3 server/life.py
+
