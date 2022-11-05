@@ -28,14 +28,25 @@ rollup_server = environ["ROLLUP_HTTP_SERVER_URL"]
 logger.info(f"HTTP rollup_server url is {rollup_server}")
 
 #Initialize grid
+global grid
 grid = init_grid
 
 #state return
+def convert_to_hex(s_input):
+    return "0x"+str(s_input.encode("utf-8").hex())
+def set_default(obj):
+    if isinstance(obj, set):
+        return list(obj)
 def get_state_hex():
+    global grid
     data_set = {
-        "grid": grid.cells,
-        "dimensions": grid.dim
+        "grid": set_default(grid.cells),
+        "dimensions": {
+            "width": grid.dim.width,
+            "height": grid.dim.height,
+        }
     }
+    #logger.info(data_set)
     json_object = json.dumps(data_set)
     hex_string = convert_to_hex(json_object)
     #logger.info("Inspect element return: "+ hex_string)
@@ -54,6 +65,7 @@ def get_neighbours(grid: Grid, x: int, y: int) -> Neighbours:
 
 #Add cells
 def add(cells):
+    global grid
     new_cells = deepcopy(grid.cells)
     for cell in cells:
         new_cells.add(cell)
@@ -113,6 +125,7 @@ def handle_advance(data):
 
     #update grid
     if operation == "step":
+        global grid
         grid = update(grid)
 
     
@@ -169,11 +182,11 @@ def handle_advance(data):
     return status
 
 def handle_inspect(data):
-    logger.info(f"Received inspect request data {data}")
-    logger.info("Adding report")
+    #logger.info(f"Received inspect request data {data}")
+    #logger.info("Adding report")
     payload = get_state_hex()
     response = requests.post(rollup_server + "/report", json={"payload": payload})
-    logger.info(f"Received report status {response.status_code}")
+    #logger.info(f"Received report status {response.status_code}")
     return "accept"
 
 handlers = {
@@ -185,9 +198,9 @@ finish = {"status": "accept"}
 rollup_address = None
 
 while True:
-    logger.info("Sending finish")
+    ##logger.info("Sending finish")
     response = requests.post(rollup_server + "/finish", json=finish)
-    logger.info(f"Received finish status {response.status_code}")
+    ##logger.info(f"Received finish status {response.status_code}")
     if response.status_code == 202:
         logger.info("No pending rollup request, trying again")
     else:

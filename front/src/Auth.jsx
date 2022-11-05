@@ -5,7 +5,7 @@ import { hooks, metaMask } from './connectors/metamask'
 const { useChainId, useAccounts, useError, useIsActivating, useIsActive, useProvider, useENSNames } = hooks
 
 export default () => {
-    const { isActive, account, provider} = useWeb3React()
+    const { isActive, account } = useWeb3React()
     //const provider = useProvider()
 
     // attempt to connect eagerly on mount
