@@ -10,12 +10,11 @@ import { DAPP_ADDRESS } from './const';
 import { useMemo } from 'react';
 import {default as axios} from "axios"
 import { useEffect } from 'react';
+import { useBlockNumber } from './hooks';
 
-
-
-const CELL_SIZE = 10;
-const WIDTH = 1200;
-const HEIGHT = 550;
+const CELL_SIZE = 5;
+const WIDTH = 500;
+const HEIGHT = 500;
 
 export const SERVER_URL = `http://localhost:3002`;
 
@@ -32,13 +31,14 @@ function makeArray(d1, d2) {
 }
 
 
-export const Cell = ({x, y})=> {
+export const Cell = ({x, y, address})=> {
     return (
         <div className="Cell" style={{
             left: `${CELL_SIZE * x + 1}px`,
             top: `${CELL_SIZE * y + 1}px`,
             width: `${CELL_SIZE - 1}px`,
             height: `${CELL_SIZE - 1}px`,
+            backgroundColor: `"${address ? address.substring(2,8): "#ffffff"}"`
         }} />
     );
 }
@@ -52,8 +52,7 @@ export const Game = () => {
     const [cells, setCells] = useState([])
     const [cellsToAdd, setCellsToAdd] = useState([])
     const { provider, account, chainId } = useWeb3React()
-    const web3 = useWeb3React()
-    //console.log(web3)
+    const block = useBlockNumber()
     //contracts
     //console.log(cells)
     useEffect(()=>{
@@ -65,6 +64,16 @@ export const Game = () => {
             return new Contract(DAPP_ADDRESS, InputFacetAbi, provider.getSigner(account).connectUnchecked())
         }
     }, [provider, account])
+
+    async function runMatch(history){
+        let inc = 0
+        while(inc < history.length()){
+            await delay(1000);
+            state = history[inc]
+            setCells(state.map(([x, y, address]) => {return {x, y, address}}));
+            inc++
+        }
+    }
     
     async function poll() {
         await delay(1000);
@@ -87,27 +96,27 @@ export const Game = () => {
             state.grid.forEach(([x, y]) => {
                 dummy_board[y][x] = !board[y][x];
             })
+            if(state.history.length() > 0){
+                runMatch(state.history)
+            }
             //setBoard(dummy_board)
             console.log(state.grid)
-            setCells(state.grid.map(([x, y]) => {return {x, y}}));
+            setCells(state.grid.map(([x, y, address]) => {return {x, y, address}}));
         } catch (error) {
             console.log(error)
         }
         
-        //console.log(state)
-
-        
         await poll();
     }
 
-    async function addInput(value) {
+    async function push() {
         await contract.addInput(ethers.utils.toUtf8Bytes(`{
             "operation": "set", 
-            "value": ${value}
+            "value": ${JSON.stringify(cellsToAdd)}
         }`))
     }
 
-    async function step(value) {
+    async function step() {
         await contract.addInput(ethers.utils.toUtf8Bytes(`{
             "operation": "step", 
             "value": "hello"
@@ -162,7 +171,7 @@ export const Game = () => {
             dummy_board[y][x] = !board[y][x];
         }
         setBoard(dummy_board)
-        setCells(makeCells());
+        setCellsToAdd(makeCells());
     }
 
     return ( 
@@ -173,13 +182,16 @@ export const Game = () => {
                 ref={(n) => { boardRef = n; }}>
 
                 {cells.map(cell => (
-                    <Cell x={cell.x} y={cell.y} key={`${cell.x},${cell.y}`}/>
+                    <Cell x={cell.x} y={cell.y} color={cell.address ? cell.address.substring(2, 8) : "ffffff"}key={`${cell.x},${cell.y}`}/>
+                ))}
+                {cellsToAdd.map(cell => (
+                    <Cell x={cell.x} y={cell.y} color={"ff0000"} key={`cellsToAdd${cell.x},${cell.y}`}/>
                 ))}
             </div>
 
             <div className="controls">
                 <button className="button" onClick={step}>Step</button>
-                <button className='button'>Push</button>
+                <button className='button' onClick={push}>Push</button>
             </div>
         </div> 
     );  

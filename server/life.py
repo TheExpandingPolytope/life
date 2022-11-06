@@ -18,7 +18,7 @@ import logging
 import requests
 import json
 
-from grids import init_grid
+from grids import init_grid, set_owners
 from deps import Grid, Neighbours
 
 logging.basicConfig(level="INFO")
@@ -27,9 +27,27 @@ logger = logging.getLogger(__name__)
 rollup_server = environ["ROLLUP_HTTP_SERVER_URL"]
 logger.info(f"HTTP rollup_server url is {rollup_server}")
 
+#Constants
+MAX_GENERATIONS = 150
+
 #Initialize grid
 global grid
 grid = init_grid
+
+#Owned by
+owners = set_owners()
+
+#Initialize time
+global last
+last = 0
+
+#Initialize block
+global block
+block = 0
+
+#Game history array
+global history
+history = []
 
 #state return
 def convert_to_hex(s_input):
@@ -37,16 +55,25 @@ def convert_to_hex(s_input):
 def set_default(obj):
     if isinstance(obj, set):
         return list(obj)
+def add_addresses(cells):
+    cells_with_address = []
+    for cell in cells:
+        cells_with_address.append((cell[0], cell[1], owners[(cell)]))
+    return cells_with_address
+        
 def get_state_hex():
     global grid
     data_set = {
-        "grid": set_default(grid.cells),
+        "grid": add_addresses(set_default(grid.cells)),
+        "history": history,
         "dimensions": {
             "width": grid.dim.width,
             "height": grid.dim.height,
-        }
+        },
+        #"owners": owners,
+        "block": block 
     }
-    #logger.info(data_set)
+    logger.info(data_set)
     json_object = json.dumps(data_set)
     hex_string = convert_to_hex(json_object)
     #logger.info("Inspect element return: "+ hex_string)
@@ -60,33 +87,59 @@ def get_neighbours(grid: Grid, x: int, y: int) -> Neighbours:
     alive = {(pos[0], pos[1])
              for pos in possible_neighbours if pos in grid.cells}
     #alive_friends =
-    #alive_enemies = 
-    return Neighbours(alive, possible_neighbours - alive)
+    #alive_enemies =
+    #get address of majority
+    majority_keeper = {}
+    for cell in alive:
+        address = owners[cell].lower()
+        if address not in majority_keeper:
+            majority_keeper[address] = 0
+        majority_keeper[address] += 1
+    
+    logger.info("majority_keeper")
+    logger.info(majority_keeper)
+    majority = max(majority_keeper, key=majority_keeper.get) if majority_keeper != {} else "0x"
+
+    logger.info("getting alive")
+    logger.info(alive)
+    return Neighbours(alive, possible_neighbours - alive, majority)
 
 #Add cells
-def add(cells):
+def add(cells, sender):
     global grid
     new_cells = deepcopy(grid.cells)
     for cell in cells:
-        new_cells.add(cell)
+        logger.info(cell)
+        new_cell = (cell["x"], cell["y"])
+        new_cells.add(new_cell)
+        owners[new_cell] = sender #set owner
     grid = Grid(grid.dim, new_cells)
 
 #Game of life logic
 def update(grid: Grid) -> Grid:
     new_cells = deepcopy(grid.cells)
     undead = defaultdict(int)
-
+    logger.info("getting grid")
+    logger.info(grid.cells)
     for (x, y) in grid.cells:
-        alive_neighbours, dead_neighbours = get_neighbours(grid, x, y)
+        alive_neighbours, dead_neighbours, majority = get_neighbours(grid, x, y)
         #kill if it does not have 2 or 3 neightbors
         if len(alive_neighbours) not in [2, 3]:
             new_cells.remove((x, y))
+            owners.pop((x, y))
 
         for pos in dead_neighbours:
+            logger.info("getting pos in dead_neighbors")
+            logger.info(pos)
             undead[pos] += 1
+    
+    #logger.info(undead.item())
+    #logger.info(undead.items())
 
     for pos, _ in filter(lambda elem: elem[1] == 3, undead.items()):
         new_cells.add((pos[0], pos[1]))
+        #determine owner
+        owners[(pos[0], pos[1])] = majority
 
     return Grid(grid.dim, new_cells)
 
@@ -118,16 +171,31 @@ def handle_advance(data):
     operation = input_value["operation"]
     value = input_value["value"]
 
+    logger.info(value)
+
+    #update based on time
+    # global last
+    # if last - timeStamp >= 1 :
+    #     global grid
+    #     grid = update(grid)
+
     #process input
     if operation == "set":
         cells_to_add = value
-        add(cells_to_add)
+        add(cells_to_add, sender)
 
-    #update grid
     if operation == "step":
         global grid
-        grid = update(grid)
+        history.append(add_addresses(set_default(grid.cells)))
+        for i in range(MAX_GENERATIONS):
+            grid = update(grid)
+            history.append(add_addresses(set_default(grid.cells)))
+        
+    last = timeStamp
+    block = blockNumber
 
+    logger.info("Here are the owners")
+    logger.info(owners)
     
     """
     An advance request may be processed as follows:
